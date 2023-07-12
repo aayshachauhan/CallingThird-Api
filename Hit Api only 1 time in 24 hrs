@@ -1,0 +1,60 @@
+Hit Api only 1 time in 24 hrs to 
+
+Max Api Hit Request - 1 or 2 or 10
+Duration - 24 hrs
+
+<dependency>
+		<groupId>com.google.guava</groupId>
+		<artifactId>guava</artifactId>
+		<version>30.1-jre</version>
+</dependency>
+
+----------------------
+@GetMapping("/order")
+	public ResponseEntity<String> getOrderData() {
+
+		if (RateLimitService.isRequestAllowed()) {
+			log.info("Get API Done");
+			List<OrderEntityDto> orderEntities = orderService.orderRead();
+			ObjectMapper objectMapper = new ObjectMapper();
+			try {
+				String json = objectMapper.writeValueAsString(orderEntities);
+				return ResponseEntity.ok(json);
+			} catch (JsonProcessingException e) {
+				// Handle JSON processing exception
+				e.printStackTrace();
+				return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing response.");
+			}
+		} else {
+			return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
+					"Today's limit exceeded, you can hit the API sevice Only 10 times a day. Please try again on next day.");
+		}
+	}
+
+----------------------------------------------------------
+New File
+
+import org.springframework.stereotype.Service;
+import com.google.common.util.concurrent.RateLimiter;
+
+@Service
+public class RateLimitService {
+    private static final int MAX_REQUESTS = 4; // Maximum number of requests allowed in a day
+    private static final int DURATION_IN_SECONDS = 24 * 60 * 60; // 24 hours
+
+    private static RateLimiter rateLimiter;
+
+    static {
+        try {
+            double rate = (double) MAX_REQUESTS / DURATION_IN_SECONDS;
+            rateLimiter = RateLimiter.create(rate);
+        } catch (Exception e) {
+            // Handle initialization error
+            e.printStackTrace();
+        }
+    }
+
+    public static boolean isRequestAllowed() {
+        return rateLimiter.tryAcquire();
+    }
+}
